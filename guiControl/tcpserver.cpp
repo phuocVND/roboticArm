@@ -1,82 +1,116 @@
 #include "tcpServer.h"
-#include <arpa/inet.h>
 #include <iostream>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <string.h>
+#include <string>
 #include <thread>
-#include <cerrno>
+#include <vector>
+#include <cstring>
+#include <chrono>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <arpa/inet.h>
+#include <errno.h>
+#endif
+
+// ------------------ Helper ------------------
+
+static void close_socket(int sock) {
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+}
+
+static std::string get_last_error() {
+#ifdef _WIN32
+    char* msg = nullptr;
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+                   NULL, WSAGetLastError(), 0, (LPSTR)&msg, 0, NULL);
+    std::string err = msg ? msg : "Unknown error";
+    LocalFree(msg);
+    return err;
+#else
+    return std::strerror(errno);
+#endif
+}
+
+// ------------------ Data Send/Recv ------------------
 
 void send_array(int client_socket, short* arr, size_t size) {
     std::vector<short> network_arr(size);
-
-    for (size_t i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i)
         network_arr[i] = htons(arr[i]);
-    }
-    ssize_t bytes_sent = send(client_socket, network_arr.data(), size * sizeof(short), 0);
 
-    if (bytes_sent == -1) {
-        std::cerr << "Error sending array: " << strerror(errno) << std::endl;
-    } else {
+    ssize_t bytes_sent = send(client_socket, reinterpret_cast<const char*>(network_arr.data()), size * sizeof(short), 0);
+    if (bytes_sent == -1)
+        std::cerr << "Error sending array: " << get_last_error() << std::endl;
+    else
         std::cout << "Array sent successfully!" << std::endl;
-    }
 }
 
 bool recv_array(int client_socket, short* arr, size_t size) {
-    std::vector<short> buffer(size); // buffer tạm để nhận dữ liệu thô
+    std::vector<short> buffer(size);
+    ssize_t bytes_received = recv(client_socket, reinterpret_cast<char*>(buffer.data()), size * sizeof(short), 0);
 
-    ssize_t bytes_received = recv(client_socket, buffer.data(), size * sizeof(short), 0);
     if (bytes_received > 0) {
         size_t elements_received = bytes_received / sizeof(short);
-        for (size_t i = 0; i < elements_received; ++i) {
-            arr[i] = ntohs(buffer[i]); // chuyển về host byte order
-            std::cout << "arr[" << i << "] = " << arr[i] << std::endl;
-        }
+        for (size_t i = 0; i < elements_received; ++i)
+            arr[i] = ntohs(buffer[i]);
+
         std::cout << "✅ Array received successfully!" << std::endl;
         return true;
     } else if (bytes_received == 0) {
         std::cout << "⚠️ Client disconnected!" << std::endl;
         return false;
     } else {
-        std::cerr << "❌ Error receiving array: " << strerror(errno) << std::endl;
+        std::cerr << "❌ Error receiving array: " << get_last_error() << std::endl;
         return false;
     }
 }
 
-
-void send_struct(int client_socket, const MyData& data) {
-    ssize_t bytes_sent = send(client_socket, &data, sizeof(data), 0);
-    if (bytes_sent == -1) {
-        std::cerr << "Error sending struct: " << strerror(errno) << std::endl;
-    } else {
+void send_struct(int client_socket, const ParameterAngle *data) {
+    ssize_t bytes_sent = send(client_socket, reinterpret_cast<const char*>(data), sizeof(*data), 0);
+    if (bytes_sent == -1)
+        std::cerr << "Error sending struct: " << get_last_error() << std::endl;
+    else
         std::cout << "Struct sent successfully!" << std::endl;
-    }
 }
 
-bool recv_struct(int client_socket, MyData& data) {
-    ssize_t bytes_received = recv(client_socket, &data, sizeof(data), 0);
-    if (bytes_received > 0) {
-        std::cout << "Struct received successfully!" << std::endl;
-        std::cout << "ID: " << data.id << std::endl;
-        std::cout << "Value: " << data.value << std::endl;
-        std::cout << "Name: " << data.name << std::endl;
-        return true;
-    } else if (bytes_received == 0) {
-        std::cout << "Client disconnected!" << std::endl;
-        return false;
-    } else {
-        std::cerr << "Error receiving struct: " << strerror(errno) << std::endl;
-        return false;
-    }
-}
+// bool recv_struct(int client_socket, ParameterAngle& data) {
+//     ssize_t bytes_received = recv(client_socket, reinterpret_cast<char*>(&data), sizeof(data), 0);
+//     if (bytes_received > 0) {
+//         std::cout << "Struct received successfully!" << std::endl;
+//         // std::cout << "ID: " << data.id << ", Value: " << data.value << ", Name: " << data.name << std::endl;
+//         return true;
+//     } else if (bytes_received == 0) {
+//         std::cout << "Client disconnected!" << std::endl;
+//         return false;
+//     } else {
+//         std::cerr << "Error receiving struct: " << get_last_error() << std::endl;
+//         return false;
+//     }
+// }
 
-TcpServer::TcpServer(const std::string& ip, short port, Parameter *parameter) {
+// ------------------ TcpServer Methods ------------------
 
-    this->parameter = parameter;
+TcpServer::TcpServer(const std::string& ip, short port, Parameter* parameter)
+    : parameter(parameter)
+{
     parameterAngle = new ParameterAngle;
+
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed!" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+#endif
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
-        std::cerr << "Socket creation failed: " << strerror(errno) << std::endl;
+        std::cerr << "Socket creation failed: " << get_last_error() << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -86,18 +120,25 @@ TcpServer::TcpServer(const std::string& ip, short port, Parameter *parameter) {
     server_address.sin_addr.s_addr = inet_addr(ip.c_str());
 
     if (bind(server_fd, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
-        std::cerr << "Bind failed: " << strerror(errno) << std::endl;
-        close(server_fd);
+        std::cerr << "Bind failed: " << get_last_error() << std::endl;
+        close_socket(server_fd);
         exit(EXIT_FAILURE);
     }
 
     if (listen(server_fd, 3) == -1) {
-        std::cerr << "Listen failed: " << strerror(errno) << std::endl;
-        close(server_fd);
+        std::cerr << "Listen failed: " << get_last_error() << std::endl;
+        close_socket(server_fd);
         exit(EXIT_FAILURE);
     }
 
     std::cout << "Server is listening on " << ip << ":" << port << std::endl;
+}
+
+TcpServer::~TcpServer() {
+    close_socket(server_fd);
+#ifdef _WIN32
+    WSACleanup();
+#endif
 }
 
 void TcpServer::start_accept() {
@@ -108,7 +149,7 @@ void TcpServer::start_accept() {
 
         client_socket = accept(server_fd, (struct sockaddr*)&client_address, &client_len);
         if (client_socket == -1) {
-            std::cerr << "Accept failed: " << strerror(errno) << std::endl;
+            std::cerr << "Accept failed: " << get_last_error() << std::endl;
             continue;
         }
 
@@ -116,48 +157,32 @@ void TcpServer::start_accept() {
 
         std::thread t([this, client_socket]() {
             handle_client(client_socket);
-            close(client_socket); // Đóng socket trong luồng
+            close_socket(client_socket);
         });
         t.detach();
     }
 }
 
 void TcpServer::handle_client(int client_socket) {
-    const char* message = "Hello from TCP server!";
-    if (send(client_socket, message, strlen(message), 0) == -1) {
-        std::cerr << "Error sending welcome message: " << strerror(errno) << std::endl;
-        return;
-    }
-
     char buffer[1024];
     ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     if (bytes_received <= 0) {
-        std::cout << "Client disconnected or error: " << (bytes_received == 0 ? "disconnected" : strerror(errno)) << std::endl;
+        std::cout << "Client disconnected or error: " << (bytes_received == 0 ? "disconnected" : get_last_error()) << std::endl;
         return;
     }
+
     buffer[bytes_received] = '\0';
     std::cout << "Received from client: " << buffer << std::endl;
-
+    parameterAngle = parameter->get_parameter();
+    send_struct(client_socket, parameterAngle);
     while (true) {
-        if(parameter->isChanged) {
+
+        if (parameter->isChanged) {
             parameterAngle = parameter->get_parameter();
-            short arr[6] = {parameterAngle->angle1,
-                            parameterAngle->angle2,
-                            parameterAngle->angle3,
-                            parameterAngle->angle4,
-                            parameterAngle->angle5,
-                            parameterAngle->angle6};
-
-            short size = sizeof(arr) / sizeof(arr[0]);
-
-            send_array(client_socket, arr, size);
-
-            short client_arr[size];
-            if (!recv_array(client_socket, client_arr, size)) {
-                break; // Thoát nếu client ngắt kết nối hoặc lỗi
-            }
+            send_struct(client_socket, parameterAngle);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+
     std::cout << "Closing client connection" << std::endl;
 }

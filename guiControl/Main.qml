@@ -8,12 +8,12 @@ Window {
 
     ListModel {
         id: sliderModel
-        ListElement { name: "1";min: 0; max: 360; val: 0 }
-        ListElement { name: "2";min: 0; max: 360; val: 0 }
-        ListElement { name: "3";min: 0; max: 360; val: 0 }
-        ListElement { name: "4";min: 0; max: 360; val: 0 }
-        ListElement { name: "5";min: 0; max: 360; val: 0 }
-        ListElement { name: "6";min: 0; max: 360; val: 0 }
+        ListElement { name: "1";min: 0; max: 180; val: 160 }
+        ListElement { name: "2";min: 0; max: 180; val: 40 }
+        ListElement { name: "3";min: 0; max: 180; val: 90 }
+        ListElement { name: "4";min: 0; max: 180; val: 0 }
+        ListElement { name: "5";min: 0; max: 180; val: 90 }
+        ListElement { name: "6";min: 0; max: 70; val: 0 }
 
     }
     Column {

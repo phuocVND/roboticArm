@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 #include <QQmlContext>
-#include "udp_client.h"
+// #include "udp_client.h"
 
 int main(int argc, char *argv[])
 {
@@ -17,13 +17,13 @@ int main(int argc, char *argv[])
     Parameter* parameter = new Parameter();
     engine.rootContext()->setContextProperty("parameter", parameter);
 
-    TcpServer server("0.0.0.0", 12345, parameter);
-    udp_client client("0.0.0.0", 8888, parameter);
+    TcpServer server("0.0.0.0", 8888, parameter);
+    // udp_client client("0.0.0.0", 8888, parameter);
 
-    std::thread udp_client([&client]() {
-        client.startConnect();
-    });
-    udp_client.detach();
+    // std::thread udp_client([&client]() {
+    //     client.startConnect();
+    // });
+    // udp_client.detach();
 
     std::thread serverThread([&server]() {
         server.start_accept();

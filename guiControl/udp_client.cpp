@@ -35,7 +35,7 @@ bool udp_client::send_data(ParameterAngle* data)
     if (m_socket < 0)
         return false;
 
-    ssize_t sent = sendto(m_socket, data, sizeof(data), 0,
+    ssize_t sent = sendto(m_socket, data, sizeof(ParameterAngle), 0,
                           (struct sockaddr*)&m_server_addr, sizeof(m_server_addr));
     return sent >= 0;
 }
@@ -44,7 +44,15 @@ void udp_client::startConnect() {
     while (true) {
         if(parameter->isChanged) {
             parameterAngle = parameter->get_parameter();
-            send_data(parameterAngle);
+            ParameterAngle data = *parameterAngle;
+
+            data.angle1 = htons(data.angle1);
+            data.angle2 = htons(data.angle2);
+            data.angle3 = htons(data.angle3);
+            data.angle4 = htons(data.angle4);
+            data.angle5 = htons(data.angle5);
+            data.angle6 = htons(data.angle6);
+            send_data(&data);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }

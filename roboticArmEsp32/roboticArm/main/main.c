@@ -6,7 +6,7 @@
 #include "tcp_client.h"
 #include "led_control.h"
 #include "servo_control.h"
-
+#include "udp_server.h"
 
 
 EventGroupHandle_t event_group;
@@ -120,6 +120,48 @@ void servo_task(void *arg) {
     vTaskDelete(NULL);
 }
 
+void udp_task(void *arg) {
+    Parametters* parametters = (Parametters*)arg;
+
+    uint8_t buffer[128];
+    char sender_ip[INET_ADDRSTRLEN];
+    uint16_t sender_port;
+
+    if (!udp_server_start()) {
+        vTaskDelete(NULL);
+        return;
+    }
+
+    while (1) {
+        int len = udp_server_receive(buffer, sizeof(buffer), sender_ip, &sender_port);
+        if (len == sizeof(ParameterAngle)) {
+            memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
+
+            // Cập nhật servo
+            setParamServo(parametters->paramsServo1, 0, parametters->parameterAngle->angle1, parametters->parameterAngleFront->angle1);
+            setParamServo(parametters->paramsServo2, 1, parametters->parameterAngle->angle2, parametters->parameterAngleFront->angle2);
+            setParamServo(parametters->paramsServo3, 2, parametters->parameterAngle->angle3, parametters->parameterAngleFront->angle3);
+            setParamServo(parametters->paramsServo4, 3, parametters->parameterAngle->angle4, parametters->parameterAngleFront->angle4);
+            setParamServo(parametters->paramsServo5, 4, parametters->parameterAngle->angle5, parametters->parameterAngleFront->angle5);
+            setParamServo(parametters->paramsServo6, 5, parametters->parameterAngle->angle6, parametters->parameterAngleFront->angle6);
+
+            *parametters->parameterAngleFront = *parametters->parameterAngle;
+
+            xEventGroupSetBits(event_group, BIT_READY);
+        } else {
+            ESP_LOGW("UDP", "Invalid data size: %d", len);
+        }
+
+        // Gửi ACK
+        const char *reply = "ACK";
+        udp_server_send((const uint8_t *)reply, strlen(reply), sender_ip, sender_port);
+    }
+
+    udp_server_close();
+    vTaskDelete(NULL);
+}
+
+
 // Task xử lý TCP
 void tcp_task(void *arg) {
     Parametters *parametters = (Parametters*)arg;
@@ -228,15 +270,15 @@ void app_main(void) {
     setParamServo(parametters->paramsServo6, (uint8_t)5, (uint8_t)parametters->parameterAngle->angle6, (uint8_t)parametters->parameterAngleFront->angle6);
 
 
-
-    xTaskCreate(
-        tcp_task,         // Task function
-        "TCP-TASK",       // Task name
-        4096,          // Stack size (words, 1 word = 4 bytes)
-        (void*)parametters,          // Task input parameter
-        5,             // Priority
-        NULL           // Task handle
-    );
+    // xTaskCreate(
+    //     tcp_task,         // Task function
+    //     "TCP-TASK",       // Task name
+    //     4096,          // Stack size (words, 1 word = 4 bytes)
+    //     (void*)parametters,          // Task input parameter
+    //     5,             // Priority
+    //     NULL           // Task handle
+    // );  
+    xTaskCreate(udp_task, "UDP-TASK", 4096, (void*)parametters, 5, NULL);
 
     xTaskCreate(servo_task, "servo_task1", 2048, (void*)parametters->paramsServo1, 5, NULL);
     xTaskCreate(servo_task, "servo_task2", 2048, (void*)parametters->paramsServo2, 5, NULL);

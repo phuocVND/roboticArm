@@ -20,6 +20,7 @@ qt_add_qml_module(appguiControl
     QML_FILES
         Main.qml
         SOURCES parameter.h parameter.cpp
+        SOURCES udp_client.h udp_client.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

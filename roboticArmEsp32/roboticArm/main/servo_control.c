@@ -25,7 +25,7 @@ void init_servos(void) {
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_TIMER_10_BIT,
         .freq_hz = SERVO_PWM_FREQ,
-        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = SERVO_LEDC_TIMER
     };
     ledc_timer_config(&ledc_timer);
@@ -36,7 +36,7 @@ void init_servos(void) {
             .channel = servo_channels[i],
             .duty = 0,
             .gpio_num = servo_pins[i],
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint = 0,
             .timer_sel = SERVO_LEDC_TIMER
         };
@@ -55,7 +55,8 @@ void servo_set_angle(uint8_t servo_id, uint8_t angle) {
 
     // Servo PWM: 0.5ms (0°) đến 2.5ms (180°) trong chu kỳ 20ms (50Hz)
     uint32_t duty = (angle * (2500 - 500) / 180 + 500) * 1023 / 20000;
-    ledc_set_duty(LEDC_HIGH_SPEED_MODE, servo_channels[servo_id], duty);
-    ledc_update_duty(LEDC_HIGH_SPEED_MODE, servo_channels[servo_id]);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, servo_channels[servo_id], duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, servo_channels[servo_id]);
+
     // printf("Servo %d set to %d degrees\n", servo_id, angle);
 }

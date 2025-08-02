@@ -53,6 +53,7 @@ udp_client::~udp_client()
 
 bool udp_client::send_data(ParameterAngle* data)
 {
+
     if (m_socket < 0) return false;
 
     ssize_t sent = sendto(m_socket, (const char*)data, sizeof(ParameterAngle), 0,

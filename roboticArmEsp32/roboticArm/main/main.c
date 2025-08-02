@@ -153,11 +153,19 @@ void udp_task(void *arg) {
         // ESP_LOGI("UDP", "Received UDP len = %d from %s:%d", len, sender_ip, sender_port);
         // ESP_LOGI("UDP", "Expected size: %d", sizeof(ParameterAngle));
                 
-        if (len == sizeof(ParameterAngle) &&
+        if (len == 12 &&  // 6 short = 12 bytes
             parametters->parameterAngle &&
             parametters->parameterAngleFront) {
 
-            memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
+            uint16_t *short_data = (uint16_t *)buffer;
+
+            parametters->parameterAngle->angle1 = (uint8_t)ntohs(short_data[0]);
+            parametters->parameterAngle->angle2 = (uint8_t)ntohs(short_data[1]);
+            parametters->parameterAngle->angle3 = (uint8_t)ntohs(short_data[2]);
+            parametters->parameterAngle->angle4 = (uint8_t)ntohs(short_data[3]);
+            parametters->parameterAngle->angle5 = (uint8_t)ntohs(short_data[4]);
+            parametters->parameterAngle->angle6 = (uint8_t)ntohs(short_data[5]);
+
             printf("UDP Received angles: %d %d %d %d %d %d\n",
                 parametters->parameterAngle->angle1,
                 parametters->parameterAngle->angle2,
@@ -166,6 +174,7 @@ void udp_task(void *arg) {
                 parametters->parameterAngle->angle5,
                 parametters->parameterAngle->angle6
             );
+
             setParamServo(parametters->paramsServo1, 0, parametters->parameterAngle->angle1, parametters->parameterAngleFront->angle1);
             setParamServo(parametters->paramsServo2, 1, parametters->parameterAngle->angle2, parametters->parameterAngleFront->angle2);
             setParamServo(parametters->paramsServo3, 2, parametters->parameterAngle->angle3, parametters->parameterAngleFront->angle3);

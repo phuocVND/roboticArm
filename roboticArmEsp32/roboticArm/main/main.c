@@ -6,7 +6,7 @@
 #include "tcp_client.h"
 #include "led_control.h"
 #include "servo_control.h"
-// #include "udp_server.h"
+#include "udp_server.h"
 
 
 EventGroupHandle_t event_group;
@@ -40,7 +40,7 @@ typedef struct {
 
 
 
-static SemaphoreHandle_t angles_mutex;
+// static SemaphoreHandle_t angles_mutex;
 
 // Task điều khiển LED
 void led_task(void *arg) {
@@ -64,16 +64,24 @@ void control_servo(uint8_t id, uint8_t angle, uint8_t angleFront) {
         servo_set_angle(id, angle);
         return;
     }
-    bool positive = angle > angleFront;
-    uint8_t start = positive ? angleFront : angle;
-    uint8_t end = !positive ? angleFront : angle;
-    for(uint8_t i = positive ? start : end; positive ? i < end : i > start; positive ? i++ : i--){
-        servo_set_angle(id, i);
-        // vTaskDelay(pdMS_TO_TICKS(10));
-    }
-    
-}
 
+    bool positive = angle > angleFront;
+
+    if (positive) {
+        for (uint8_t i = angleFront; i < angle; i += 3) {
+            servo_set_angle(id, i);
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    } else {
+        for (uint8_t i = angleFront; i > angle; i -= 3) {
+            servo_set_angle(id, i);
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    }
+
+    // Đảm bảo kết thúc chính xác tại `angle`
+    servo_set_angle(id, angle);
+}
 
 void setParamServo(ParamsServo* paramsServo, uint8_t id, uint8_t angle, uint8_t angleFront){
     paramsServo->servo_index = id;
@@ -120,46 +128,42 @@ void servo_task(void *arg) {
     vTaskDelete(NULL);
 }
 
-// void udp_task(void *arg) {
-//     Parametters* parametters = (Parametters*)arg;
+void udp_task(void *arg) {
+    Parametters *parametters = (Parametters*)arg;
+    uint8_t buffer[128];
+    char sender_ip[INET_ADDRSTRLEN];
+    uint16_t sender_port;
 
-//     uint8_t buffer[128];
-//     char sender_ip[INET_ADDRSTRLEN];
-//     uint16_t sender_port;
+    // if (!udp_server_start()) {
+    //     ESP_LOGE("UDP", "Failed to start UDP server");
+    //     vTaskDelete(NULL);
+    //     return;
+    // }
 
-//     if (!udp_server_start()) {
-//         vTaskDelete(NULL);
-//         return;
-//     }
+        while (1) {
+        int len = udp_server_receive(buffer, sizeof(buffer), sender_ip, &sender_port);
+        if (len > 0) {
+            // deserialize buffer thành struct nếu cần
+            memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
 
-//     while (1) {
-//         int len = udp_server_receive(buffer, sizeof(buffer), sender_ip, &sender_port);
-//         if (len == sizeof(ParameterAngle)) {
-//             memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
+            // Điều khiển servo dựa trên struct
+            setParamServo(parametters->paramsServo1, 0, parametters->parameterAngle->angle1, parametters->parameterAngleFront->angle1);
+            setParamServo(parametters->paramsServo2, 1, parametters->parameterAngle->angle2, parametters->parameterAngleFront->angle2);
+            setParamServo(parametters->paramsServo3, 2, parametters->parameterAngle->angle3, parametters->parameterAngleFront->angle3);
+            setParamServo(parametters->paramsServo4, 3, parametters->parameterAngle->angle4, parametters->parameterAngleFront->angle4);
+            setParamServo(parametters->paramsServo5, 4, parametters->parameterAngle->angle5, parametters->parameterAngleFront->angle5);
+            setParamServo(parametters->paramsServo6, 5, parametters->parameterAngle->angle6, parametters->parameterAngleFront->angle6);
+            *parametters->parameterAngleFront = *parametters->parameterAngle;
 
-//             // Cập nhật servo
-//             setParamServo(parametters->paramsServo1, 0, parametters->parameterAngle->angle1, parametters->parameterAngleFront->angle1);
-//             setParamServo(parametters->paramsServo2, 1, parametters->parameterAngle->angle2, parametters->parameterAngleFront->angle2);
-//             setParamServo(parametters->paramsServo3, 2, parametters->parameterAngle->angle3, parametters->parameterAngleFront->angle3);
-//             setParamServo(parametters->paramsServo4, 3, parametters->parameterAngle->angle4, parametters->parameterAngleFront->angle4);
-//             setParamServo(parametters->paramsServo5, 4, parametters->parameterAngle->angle5, parametters->parameterAngleFront->angle5);
-//             setParamServo(parametters->paramsServo6, 5, parametters->parameterAngle->angle6, parametters->parameterAngleFront->angle6);
+            const char *reply = "UDP: OK";
+            udp_server_send((const uint8_t *)reply, strlen(reply), sender_ip, sender_port);
+        }
+    }
 
-//             *parametters->parameterAngleFront = *parametters->parameterAngle;
+    udp_server_close();
+    vTaskDelete(NULL);
+}
 
-//             xEventGroupSetBits(event_group, BIT_READY);
-//         } else {
-//             ESP_LOGW("UDP", "Invalid data size: %d", len);
-//         }
-
-//         // Gửi ACK
-//         const char *reply = "ACK";
-//         udp_server_send((const uint8_t *)reply, strlen(reply), sender_ip, sender_port);
-//     }
-
-//     udp_server_close();
-//     vTaskDelete(NULL);
-// }
 
 
 // Task xử lý TCP
@@ -228,17 +232,21 @@ void app_main(void) {
         ESP_LOGE("MAIN", "Failed to create event group");
         return;
     }
-
-
-    // Khởi tạo TCP client
-    if (tcp_client_init() != ESP_OK) {
-        ESP_LOGE("MAIN", "Failed to initialize TCP client");
-        return;
-    }
-    const char *message = "Hello, Esp32 of Duy Phuoc!";
-    if (tcp_client_send(message) != ESP_OK) {
-        ESP_LOGE("TCP_TASK", "Failed to send data");
-    }
+    // Khởi tạo UDP client
+    if (!udp_server_start()) {
+    ESP_LOGE("UDP", "Failed to start UDP server");
+    vTaskDelete(NULL);
+    return;
+}
+    // // Khởi tạo TCP client
+    // if (tcp_client_init() != ESP_OK) {
+    //     ESP_LOGE("MAIN", "Failed to initialize TCP client");
+    //     return;
+    // }
+    // const char *message = "Hello, Esp32 of Duy Phuoc!";
+    // if (tcp_client_send(message) != ESP_OK) {
+    //     ESP_LOGE("TCP_TASK", "Failed to send data");
+    // }
 
     Parametters* parametters = (Parametters*)malloc(sizeof(Parametters));
 
@@ -270,15 +278,15 @@ void app_main(void) {
     setParamServo(parametters->paramsServo6, (uint8_t)5, (uint8_t)parametters->parameterAngle->angle6, (uint8_t)parametters->parameterAngleFront->angle6);
 
 
-    xTaskCreate(
-        tcp_task,         // Task function
-        "TCP-TASK",       // Task name
-        4096,          // Stack size (words, 1 word = 4 bytes)
-        (void*)parametters,          // Task input parameter
-        5,             // Priority
-        NULL           // Task handle
-    );  
-    // xTaskCreate(udp_task, "UDP-TASK", 4096, (void*)parametters, 5, NULL);
+    // xTaskCreate(
+    //     tcp_task,         // Task function
+    //     "TCP-TASK",       // Task name
+    //     4096,          // Stack size (words, 1 word = 4 bytes)
+    //     (void*)parametters,          // Task input parameter
+    //     5,             // Priority
+    //     NULL           // Task handle
+    // );  
+    xTaskCreate(udp_task, "UDP-TASK", 4096, (void*)parametters, 5, NULL);
 
     xTaskCreate(servo_task, "servo_task1", 2048, (void*)parametters->paramsServo1, 5, NULL);
     xTaskCreate(servo_task, "servo_task2", 2048, (void*)parametters->paramsServo2, 5, NULL);

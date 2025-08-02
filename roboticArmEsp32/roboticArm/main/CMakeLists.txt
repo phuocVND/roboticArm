@@ -6,6 +6,7 @@ idf_component_register(SRCS "udp_server.c" "main.c"
                             "wifi_connect.c"
                             "servo_control.c"
                             "led_control.c"
+                            "structData.h"
                             "main.c"
                     INCLUDE_DIRS "."
                     REQUIRES ${requires})

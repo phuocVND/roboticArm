@@ -1,11 +1,5 @@
 #include "tcp_client.h"
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
+
 
 
 

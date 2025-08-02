@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "roboticArm",
-    "project_version":    "6405968-dirty",
+    "project_version":    "ddc406d-dirty",
     "project_path":       "C:/Users/duyph/Desktop/roboticArm/roboticArmEsp32/roboticArm",
     "idf_path":           "C:/Users/duyph/esp/v5.3/esp-idf",
     "build_dir":          "C:/Users/duyph/Desktop/roboticArm/roboticArmEsp32/roboticArm/build",

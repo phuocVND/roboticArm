@@ -7,10 +7,10 @@ typedef struct {
 } MyData;
 
 typedef struct {
-    short angle1;
-    short angle2;
-    short angle3;
-    short angle4;
-    short angle5;
-    short angle6;
+    uint8_t angle1;
+    uint8_t angle2;
+    uint8_t angle3;
+    uint8_t angle4;
+    uint8_t angle5;
+    uint8_t angle6;
 } ParameterAngle;

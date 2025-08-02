@@ -60,6 +60,8 @@ void led_task(void *arg) {
 
 // Task điều khiển Servo
 void control_servo(uint8_t id, uint8_t angle, uint8_t angleFront) {
+    if (angle > 180) angle = 180;
+    else if (angle < 0) angle = 0;
     if (angle == angleFront) {
         servo_set_angle(id, angle);
         return;
@@ -134,35 +136,53 @@ void udp_task(void *arg) {
     char sender_ip[INET_ADDRSTRLEN];
     uint16_t sender_port;
 
-    // if (!udp_server_start()) {
-    //     ESP_LOGE("UDP", "Failed to start UDP server");
-    //     vTaskDelete(NULL);
-    //     return;
-    // }
+    while (1) {
+        EventBits_t bits = xEventGroupWaitBits(
+            event_group,
+            BIT_DONE,
+            pdTRUE,       // clear BIT_DONE sau khi nhận
+            pdTRUE,       // chờ tất cả bit (ở đây là chỉ 1 bit cũng OK)
+            portMAX_DELAY // block vĩnh viễn
+        );
+        xEventGroupClearBits(event_group, BIT_READY);
 
-        while (1) {
+        // ESP_LOGI("UDP", "Waiting for UDP data...");
+
         int len = udp_server_receive(buffer, sizeof(buffer), sender_ip, &sender_port);
-        if (len > 0) {
-            // deserialize buffer thành struct nếu cần
-            memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
 
-            // Điều khiển servo dựa trên struct
+        // ESP_LOGI("UDP", "Received UDP len = %d from %s:%d", len, sender_ip, sender_port);
+        // ESP_LOGI("UDP", "Expected size: %d", sizeof(ParameterAngle));
+                
+        if (len == sizeof(ParameterAngle) &&
+            parametters->parameterAngle &&
+            parametters->parameterAngleFront) {
+
+            memcpy(parametters->parameterAngle, buffer, sizeof(ParameterAngle));
+            printf("UDP Received angles: %d %d %d %d %d %d\n",
+                parametters->parameterAngle->angle1,
+                parametters->parameterAngle->angle2,
+                parametters->parameterAngle->angle3,
+                parametters->parameterAngle->angle4,
+                parametters->parameterAngle->angle5,
+                parametters->parameterAngle->angle6
+            );
             setParamServo(parametters->paramsServo1, 0, parametters->parameterAngle->angle1, parametters->parameterAngleFront->angle1);
             setParamServo(parametters->paramsServo2, 1, parametters->parameterAngle->angle2, parametters->parameterAngleFront->angle2);
             setParamServo(parametters->paramsServo3, 2, parametters->parameterAngle->angle3, parametters->parameterAngleFront->angle3);
             setParamServo(parametters->paramsServo4, 3, parametters->parameterAngle->angle4, parametters->parameterAngleFront->angle4);
             setParamServo(parametters->paramsServo5, 4, parametters->parameterAngle->angle5, parametters->parameterAngleFront->angle5);
             setParamServo(parametters->paramsServo6, 5, parametters->parameterAngle->angle6, parametters->parameterAngleFront->angle6);
+
             *parametters->parameterAngleFront = *parametters->parameterAngle;
 
-            const char *reply = "UDP: OK";
-            udp_server_send((const uint8_t *)reply, strlen(reply), sender_ip, sender_port);
+            xEventGroupSetBits(event_group, BIT_READY);
         }
     }
 
     udp_server_close();
     vTaskDelete(NULL);
 }
+
 
 
 
@@ -190,7 +210,6 @@ void tcp_task(void *arg) {
         setParamServo(parametters->paramsServo5, (uint8_t)4, (uint8_t)parametters->parameterAngle->angle5, (uint8_t)parametters->parameterAngleFront->angle5);
         setParamServo(parametters->paramsServo6, (uint8_t)5, (uint8_t)parametters->parameterAngle->angle6, (uint8_t)parametters->parameterAngleFront->angle6);
         *parametters->parameterAngleFront = *parametters->parameterAngle;
-
         xEventGroupSetBits(event_group, BIT_READY);
 
     }
@@ -232,12 +251,14 @@ void app_main(void) {
         ESP_LOGE("MAIN", "Failed to create event group");
         return;
     }
+
     // Khởi tạo UDP client
     if (!udp_server_start()) {
     ESP_LOGE("UDP", "Failed to start UDP server");
-    vTaskDelete(NULL);
     return;
-}
+    }
+
+
     // // Khởi tạo TCP client
     // if (tcp_client_init() != ESP_OK) {
     //     ESP_LOGE("MAIN", "Failed to initialize TCP client");
@@ -277,15 +298,8 @@ void app_main(void) {
     setParamServo(parametters->paramsServo5, (uint8_t)4, (uint8_t)parametters->parameterAngle->angle5, (uint8_t)parametters->parameterAngleFront->angle5);
     setParamServo(parametters->paramsServo6, (uint8_t)5, (uint8_t)parametters->parameterAngle->angle6, (uint8_t)parametters->parameterAngleFront->angle6);
 
-
-    // xTaskCreate(
-    //     tcp_task,         // Task function
-    //     "TCP-TASK",       // Task name
-    //     4096,          // Stack size (words, 1 word = 4 bytes)
-    //     (void*)parametters,          // Task input parameter
-    //     5,             // Priority
-    //     NULL           // Task handle
-    // );  
+ 
+    // xTaskCreate(tcp_task, "TCP-TASK", 4096, (void*)parametters, 5, NULL);
     xTaskCreate(udp_task, "UDP-TASK", 4096, (void*)parametters, 5, NULL);
 
     xTaskCreate(servo_task, "servo_task1", 2048, (void*)parametters->paramsServo1, 5, NULL);

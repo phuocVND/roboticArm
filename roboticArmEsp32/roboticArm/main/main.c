@@ -60,31 +60,23 @@ void led_task(void *arg) {
 
 // Task điều khiển Servo
 void control_servo(uint8_t id, uint8_t angle, uint8_t angleFront) {
-    if (angle > 180) angle = 180;
-    else if (angle < 0) angle = 0;
     if (angle == angleFront) {
         servo_set_angle(id, angle);
         return;
     }
-
     bool positive = angle > angleFront;
-
-    if (positive) {
-        for (uint8_t i = angleFront; i < angle; i += 3) {
+    uint8_t start = positive ? angleFront : angle;
+    uint8_t end = !positive ? angleFront : angle;
+    uint8_t value;
+    for(uint8_t i = positive ? start : end; positive ? i < end : i > start; positive ? i++ : i--){
+        for(int j =0 ; j < 1000 ; j ++){
             servo_set_angle(id, i);
-            vTaskDelay(pdMS_TO_TICKS(20));
         }
-    } else {
-        for (uint8_t i = angleFront; i > angle; i -= 3) {
-            servo_set_angle(id, i);
-            vTaskDelay(pdMS_TO_TICKS(20));
-        }
+        servo_set_angle(id, i);
+        // vTaskDelay(pdMS_TO_TICKS(20));
     }
-
-    // Đảm bảo kết thúc chính xác tại `angle`
-    servo_set_angle(id, angle);
+    // servo_set_angle(id, angle);
 }
-
 void setParamServo(ParamsServo* paramsServo, uint8_t id, uint8_t angle, uint8_t angleFront){
     paramsServo->servo_index = id;
     paramsServo->servo_angle = angle;

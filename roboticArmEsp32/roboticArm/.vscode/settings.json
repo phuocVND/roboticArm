@@ -20,10 +20,11 @@
   "idf.flashType": "UART",
   "idf.espIdfPathWin": "C:\\Users\\duyph\\esp\\v5.3\\esp-idf",
   "idf.toolsPathWin": "C:\\Users\\duyph\\.espressif",
-  "idf.portWin": "COM4",
+  "idf.portWin": "COM3",
   "files.associations": {
     "socket.h": "c",
     "stdio.h": "c",
-    "inet.h": "c"
+    "inet.h": "c",
+    "cstdint": "c"
   }
 }

@@ -3,7 +3,7 @@
 #include "servo_control.h"
 
 // Định nghĩa chân GPIO cho 6 servo (tránh xung đột với LED)
-static const int servo_pins[NUM_SERVOS] = {4, 16, 17, 5, 18, 19};
+static const int servo_pins[NUM_SERVOS] = {5, 6, 7, 15, 16, 17};
 
 // Định nghĩa kênh PWM cho 6 servo
 static const ledc_channel_t servo_channels[NUM_SERVOS] = {
